@@ -310,3 +310,53 @@ SMTP_USER=your@email.com
 SMTP_PASS=your_app_password
 ```
 
+---
+
+## AI Tools Used
+
+**Primary tool: GitHub Copilot (Claude Sonnet 4.6)**
+
+This entire solution was built using GitHub Copilot as an AI pair programmer. Here's specifically how it was used:
+
+| Task | How AI helped |
+|------|--------------|
+| Architecture design | Copilot proposed the modular pipeline: parser → extractor → engine → notifier |
+| Pydantic model design | Generated type-safe `CompositeCondition` / `OperandCondition` recursive models with validators |
+| Prompt engineering | Iteratively refined the LLM extraction prompt to enforce strict JSON schema output with Chain-of-Thought reasoning |
+| Rule extraction | All 32 rules pre-extracted by analysing the policy document section-by-section |
+| Safe expression evaluator | `_SafeEval` class uses regex whitelisting to prevent code injection while supporting arithmetic in conditions |
+| Bug fixes | Fixed `OperandCondition.value` handling for `exists` operator, `CONFLICT_PROMPT` brace escaping, and `Notification.within_minutes` null coercion |
+| Test generation | Generated the full 40-test pytest suite covering edge cases (GSTIN mismatch, GRN hold, rate mismatch, watchlist override, etc.) |
+| Git & deployment | Guided through GitHub repo setup and push |
+
+**LLM provider: Groq (free tier)**
+- Model: `llama-3.3-70b-versatile`
+- `temperature=0.1` for deterministic, reproducible rule extraction
+- Section-by-section prompting to avoid context window limits
+- 3-retry logic with exponential backoff built into the Groq SDK
+
+## Sample Output
+
+Running `python -m src.main demo` produces decisions like:
+
+```
+Scenario: Over-Invoiced ≥10%: Escalate to Finance Controller
+  Invoice  : INV-2026-002
+  Status   : → ESCALATE_TO_FINANCE_CONTROLLER
+  Triggered Rules (2):
+  [!] AP-POM-004   Section 2.2(c)  → ESCALATE_TO_FINANCE_CONTROLLER
+       Detail: Invoice amount exceeds PO by ≥10%
+       Notify: finance_controller, internal_audit within 15m
+
+Scenario: GSTIN Mismatch: Compliance Rejection
+  Invoice  : INV-2026-003
+  Status   : ⛔ COMPLIANCE_HOLD
+  Triggered Rules (1):
+  [·] AP-TAX-001   Section 4.1     → REJECT
+       Detail: GSTIN Mismatch — Update Vendor Master or Verify Invoice
+
+Scenario: Happy Path: Clean Invoice (auto-approve)
+  Invoice  : INV-2026-001
+  Status   : ✓ AUTO_APPROVE
+```
+
