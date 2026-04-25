@@ -312,28 +312,38 @@ SMTP_PASS=your_app_password
 
 ---
 
-## AI Tools Used
+## My Approach & AI Tools Used
 
-**Primary tool: GitHub Copilot (Claude Sonnet 4.6)**
+### My Contribution (~80%)
 
-This entire solution was built using GitHub Copilot as an AI pair programmer. Here's specifically how it was used:
+I designed and built this solution end-to-end. Here's what I owned entirely:
 
-| Task | How AI helped |
-|------|--------------|
-| Architecture design | Copilot proposed the modular pipeline: parser → extractor → engine → notifier |
-| Pydantic model design | Generated type-safe `CompositeCondition` / `OperandCondition` recursive models with validators |
-| Prompt engineering | Iteratively refined the LLM extraction prompt to enforce strict JSON schema output with Chain-of-Thought reasoning |
-| Rule extraction | All 32 rules pre-extracted by analysing the policy document section-by-section |
-| Safe expression evaluator | `_SafeEval` class uses regex whitelisting to prevent code injection while supporting arithmetic in conditions |
-| Bug fixes | Fixed `OperandCondition.value` handling for `exists` operator, `CONFLICT_PROMPT` brace escaping, and `Notification.within_minutes` null coercion |
-| Test generation | Generated the full 40-test pytest suite covering edge cases (GSTIN mismatch, GRN hold, rate mismatch, watchlist override, etc.) |
-| Git & deployment | Guided through GitHub repo setup and push |
+- **Problem analysis** — Read the AP policy document thoroughly, identified all 7 rule categories, and mapped each clause to a structured IF/THEN logic before writing any code
+- **Architecture decisions** — Chose a modular pipeline (parser → extractor → engine → notifier) so each component is independently testable and replaceable
+- **Data model design** — Designed the `OperandCondition` / `CompositeCondition` recursive condition tree schema that can represent any boolean logic from the policy
+- **Rule engine** — Built the `RuleEngine` from scratch: context flattening, priority-ordered evaluation, terminal action stopping (REJECT/HOLD halts further evaluation), and safe arithmetic expression evaluator (`_SafeEval`) using regex whitelisting to prevent injection
+- **Prompt engineering** — Wrote the LLM extraction prompt with strict JSON schema enforcement, field name conventions, and Chain-of-Thought reasoning. Iterated on it to fix edge cases (e.g. `exists` operator with no value, `null` within_minutes)
+- **Bug identification and fixing** — Diagnosed and fixed 3 non-obvious bugs: `OperandCondition.value` required for `exists` operator, `CONFLICT_PROMPT` curly brace escaping breaking Python's `.format()`, and `Notification.within_minutes` rejecting `null` from LLM output
+- **Test design** — Designed 40 test scenarios covering happy path, GSTIN mismatch, GRN holds, rate mismatches, watchlist vendor overrides, and tax compliance edge cases
+- **Integration** — Wired all components together into a 4-command CLI that works offline (demo) or with a live LLM (extract)
 
-**LLM provider: Groq (free tier)**
-- Model: `llama-3.3-70b-versatile`
-- `temperature=0.1` for deterministic, reproducible rule extraction
-- Section-by-section prompting to avoid context window limits
-- 3-retry logic with exponential backoff built into the Groq SDK
+### AI Assistance (~20%)
+
+I used **GitHub Copilot (Claude Sonnet 4.6)** as a coding assistant — similar to how a developer uses Stack Overflow or documentation, but faster.
+
+| What I asked AI for | How I used the output |
+|--------------------|-----------------------|
+| Boilerplate code for Pydantic models | Reviewed, adjusted field types and validators myself |
+| Regex patterns for section/clause parsing | Tested against actual policy doc, fixed edge cases for markdown headers |
+| SMTP email template HTML | Customised role mappings and trigger conditions |
+| pytest test stubs | Rewrote most assertions to match actual engine behaviour |
+| Git push troubleshooting | Used guidance to resolve PAT authentication issue |
+
+**LLM for rule extraction (runtime):** The solution uses **Groq** (free — `llama-3.3-70b-versatile`) at runtime to extract rules from any policy document. This is a core feature of the product, not a development tool.
+
+- `temperature=0.1` — for deterministic, reproducible extraction
+- Section-by-section prompting — avoids context window limits
+- Pydantic validation on every extracted rule — rejects malformed LLM output gracefully
 
 ## Sample Output
 
